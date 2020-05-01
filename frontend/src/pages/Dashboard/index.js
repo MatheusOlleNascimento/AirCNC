@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import socketio from 'socket.io-client';
 
@@ -7,15 +7,17 @@ import api from '../../services/api';
 import  './styles.css';
 
 export default function Dashboard(){
-    const [spots, SetSpots] = useState([]);
-
+    const [spots, setSpots] = useState([]);
+    const [requests, setRequests] = useState([]);
+    
+    const user_id = localStorage.getItem('user');
+    //useMemo Memoriza o valor de uma variável
+    const socket = useMemo(() => socketio('http://localhost:3333', {
+        query: {user_id},
+    }), [user_id]);
+        
     useEffect(() => {
-        const user_id = localStorage.getItem('user');
-        //Faz uma conexão realtime com o backend 
-        const socket = socketio('http://localhost:3333', {
-            query: {user_id},
-        });
-
+        //#region Comentários
         // //Escuta mensagens em realtime que sejam hello
         // socket.on('hello', data => {
         //     console.log(data);
@@ -23,8 +25,11 @@ export default function Dashboard(){
 
         // //Envia uma mensagem para o backend em realtime
         // socket.emit('omni', 'Stack');
-
-    }, []);
+//#endregion
+        socket.on('booking_request', data => {
+            setRequests([...requests, data]);
+        })
+    }, [requests, socket]);
 
     useEffect(() => {
         async function loadSpots(){
@@ -32,14 +37,37 @@ export default function Dashboard(){
             const response = await api.get('/dashboard', {
                 headers: { user_id }
             });
-            SetSpots(response.data);
+            setSpots(response.data);
         }
         loadSpots();
 
     }, []);
 
+    async function handleAccept(id) {
+        await api.post(`/bookings/${id}/approvals`);
+
+        setRequests(requests.filter(request => request._id != id));
+    }
+    
+    async function handleReject(id) {
+        await api.post(`/bookings/${id}/rejections`);
+
+        setRequests(requests.filter(request => request._id != id));
+    }
     return (
         <>
+        <ul className="notifications">
+            {requests.map(request => (
+                <li key={request._id}>
+                    <p>
+                        <strong>{request.user.email}</strong> está solicitando uma reserva em <strong>{request.spot.company}</strong> para o dia <strong>{request.date}</strong>
+                    </p>
+                    <button className="reject" onClick={() => handleReject(request._id)}>REJEITAR</button>
+                    <button className="accept" onClick={() => handleAccept(request._id)}>ACEITAR</button>
+                </li>
+            ))}
+        </ul>
+                
         <ul className="spot-list">
             {spots.map(spot =>(
                 <li key={spot._id}>
@@ -50,10 +78,11 @@ export default function Dashboard(){
                 </li>
             ))}
         </ul>
-
+        
         <Link to="/new">
         <button className="btn">Cadastrar novo spot</button>
         </Link>
+       
         </>
 
     )

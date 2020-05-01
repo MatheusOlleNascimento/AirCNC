@@ -12,25 +12,41 @@ const app = express();
 const server = http.Server(app);
 const io = socketio(server);
 
-io.on('connection', socket => {
-    console.log('Usuário conectado', socket.id);
-    console.log(socket.handshake.query);
-    // //Envia em realtime uma mensagem para o front-end
-    // setTimeout(() => {
-    //     socket.emit('hello', 'World');
-    // }, 4000);
-    // //Escuta mensagens em realtime que sejam omni
-    // socket.on('omni', data => {
-    //     console.log(data);
-    // })
-    
-});
-
 mongoose.connect('mongodb+srv://guardions:1475963@cluster0-mfmbx.mongodb.net/Aircnc?retryWrites=true&w=majority',{
     useNewUrlParser: true,
     useUnifiedTopology: true
     });
 
+const connectedUsers = {};
+
+io.on('connection', socket => {
+    
+    console.log(socket.handshake.query);
+    console.log('Usuário conectado', socket.id);
+    
+    //#region Comentários
+    ////Envia em realtime uma mensagem para o front-end
+    // setTimeout(() => {
+    //     socket.emit('hello', 'World');    
+    // }, 4000);
+    // //Escuta mensagens em realtime que sejam omni
+    // socket.on('omni', data => {
+    //     console.log(data);    
+    // })
+    //#endregion
+    
+    const { user_id } = socket.handshake.query;
+    connectedUsers[user_id] = socket.id;
+
+});    
+
+app.use((req, res, next) => {
+    req.io = io;
+    req.connectedUsers = connectedUsers;
+
+    return next();
+
+})
 
 app.use(cors());
 app.use(express.json());
